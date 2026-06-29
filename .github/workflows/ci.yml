@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directiory: backend
+        working-directory: backend
     
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
