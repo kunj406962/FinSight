@@ -1,6 +1,5 @@
 import io
 import pandas as pd
-import pytest
 from app.services.parsers.detector import detect_and_get_parser
 from app.services.parsers.rbc_parser import RBCParser
 
