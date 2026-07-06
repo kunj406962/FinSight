@@ -20,6 +20,8 @@ class Category(str, Enum):
     health = "Health"
     shopping = "Shopping"
     income = "Income"
+    transfer = "Transfer"
+    savings = "Savings"
     other = "Other"
 
 
