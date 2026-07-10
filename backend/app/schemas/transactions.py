@@ -14,6 +14,7 @@ class AccountType(str, Enum):
 
 class Category(str, Enum):
     food = "Food"
+    groceries = "Groceries"
     transport = "Transport"
     utilities = "Utilities"
     entertainment = "Entertainment"
@@ -22,6 +23,8 @@ class Category(str, Enum):
     income = "Income"
     transfer = "Transfer"
     savings = "Savings"
+    rent_mortgage = "Rent/Mortgage"
+    education = "Education"
     other = "Other"
 
 
@@ -82,3 +85,31 @@ class InsightResponse(BaseModel):
     anomaly_count: int
     top_categories: list[dict]
     gemini_narration: str
+
+class PreviewTransaction(BaseModel):
+    date: date
+    description: str
+    amount: float
+    predicted_category: Category
+
+
+class UploadPreviewResponse(BaseModel):
+    account_id: UUID
+    filename: str
+    bank_detected: str
+    transactions: list[PreviewTransaction]
+
+
+class ConfirmTransaction(BaseModel):
+    date: date
+    description: str
+    amount: float
+    predicted_category: Category
+    final_category: Category
+
+
+class UploadConfirmRequest(BaseModel):
+    account_id: UUID
+    filename: str
+    bank_detected: str
+    transactions: list[ConfirmTransaction]
