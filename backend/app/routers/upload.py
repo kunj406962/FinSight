@@ -1,11 +1,12 @@
 import pandas as pd
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from app.auth.dependencies import get_current_user
 from app.services.db import get_supabase
 from app.services.parsers.detector import detect_and_get_parser
 from app.services.parsers.base_parser import ParsedTransaction
 from app.ml.transfer_detector import is_savings, is_transfer
 from app.ml.categorizer import predict_category
+from app.ml.anomaly import score_user_transactions
 from app.schemas.transactions import (
     UploadResponse,
     UploadPreviewResponse,
@@ -143,7 +144,8 @@ async def upload_preview(
 @router.post("/confirm", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_confirm(
     confirm_request: UploadConfirmRequest,
-    user=Depends(get_current_user),
+    background_tasks: BackgroundTasks,
+    user=Depends(get_current_user)
 ):
     supabase = get_supabase()
     account = _validate_account(supabase, str(confirm_request.account_id), user.id)
@@ -192,6 +194,8 @@ async def upload_confirm(
             supabase.table("category_overrides").upsert(
                 override_rows, on_conflict="user_id,description"
             ).execute()
+        
+        background_tasks.add_task(score_user_transactions, supabase, user.id)
 
     return UploadResponse(
         batch_id=batch_id,
