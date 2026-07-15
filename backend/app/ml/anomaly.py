@@ -65,8 +65,19 @@ def score_user_transactions(supabase, user_id: str) -> None:
         if row["anomaly_score"] is None
     ]
 
-    if updates:
-        supabase.table("transactions").upsert(updates, on_conflict="id").execute()
+    # NOTE: deliberately UPDATE, not upsert. Postgres upsert (INSERT ... ON
+    # CONFLICT DO UPDATE) validates NOT NULL constraints against the
+    # tentative insert row *before* checking for a conflict — so a
+    # partial-column upsert payload fails on columns we didn't include
+    # (user_id, description, etc.), even though the row already exists and
+    # was only ever going to be updated. UPDATE has no such problem since it
+    # only ever touches the columns given. Trade-off: one round trip per row
+    # instead of a single batch call — acceptable here since this runs in a
+    # background task, off the request path.
+    for update in updates:
+        supabase.table("transactions").update(
+            {"is_anomaly": update["is_anomaly"], "anomaly_score": update["anomaly_score"]}
+        ).eq("id", update["id"]).execute()
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, _model_path(user_id))
