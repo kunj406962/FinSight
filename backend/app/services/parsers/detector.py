@@ -1,3 +1,4 @@
+# Detects supported bank CSV formats and picks the appropriate parser.
 import pandas as pd
 from app.services.parsers.base_parser import BaseParser, ParsedTransaction
 from app.services.parsers.rbc_parser import RBC_REQUIRED_COLUMNS, RBCParser
@@ -8,8 +9,7 @@ AMOUNT_KEYWORDS = ("amount", "cad$", "usd$", "debit", "credit", "withdrawal", "d
 
 
 class GenericFallbackParser(BaseParser):
-    """Best-effort parser for unrecognized bank formats. Heuristically finds
-    date, description, and amount columns by header keyword matching."""
+    """Best-effort parser for unrecognized bank formats using keyword-based column matching."""
 
     def __init__(self, date_col: str, description_col: str, amount_col: str):
         self.date_col = date_col
@@ -17,6 +17,7 @@ class GenericFallbackParser(BaseParser):
         self.amount_col = amount_col
 
     def parse(self, df: pd.DataFrame) -> list[ParsedTransaction]:
+        """Convert each row into a normalized transaction using the detected columns."""
         transactions = []
         for _, row in df.iterrows():
             txn_date = pd.to_datetime(row[self.date_col]).date()
@@ -29,6 +30,7 @@ class GenericFallbackParser(BaseParser):
 
 
 def _find_column(headers: list[str], keywords: tuple[str, ...]) -> str | None:
+    """Locate the first header that contains any of the supplied keywords."""
     for header in headers:
         if any(keyword in header.lower() for keyword in keywords):
             return header
@@ -36,7 +38,7 @@ def _find_column(headers: list[str], keywords: tuple[str, ...]) -> str | None:
 
 
 def detect_and_get_parser(df: pd.DataFrame) -> tuple[str, BaseParser | None]:
-    """Returns (bank_name, parser). parser is None if detection fails entirely."""
+    """Return the detected bank name and a parser instance, if one can be determined."""
     headers = set(df.columns)
 
     if RBC_REQUIRED_COLUMNS.issubset(headers):

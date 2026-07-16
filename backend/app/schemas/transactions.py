@@ -1,3 +1,4 @@
+# Pydantic models that define the API payloads used across the backend.
 from __future__ import annotations
 from datetime import date, datetime
 from enum import Enum
@@ -6,6 +7,7 @@ from pydantic import BaseModel
 
 
 class AccountType(str, Enum):
+    """Supported account kinds for user financial accounts."""
     chequing = "chequing"
     savings = "savings"
     credit_card = "credit_card"
@@ -13,22 +15,30 @@ class AccountType(str, Enum):
 
 
 class Category(str, Enum):
+    """Allowed transaction categories used by the budgeting and ML features."""
     food = "Food"
+    groceries = "Groceries"
     transport = "Transport"
     utilities = "Utilities"
     entertainment = "Entertainment"
     health = "Health"
     shopping = "Shopping"
     income = "Income"
+    transfer = "Transfer"
+    savings = "Savings"
+    rent_mortgage = "Rent/Mortgage"
+    education = "Education"
     other = "Other"
 
 
 class AccountCreate(BaseModel):
+    """Request body for creating a new account."""
     name: str
     account_type: AccountType
 
 
 class AccountResponse(BaseModel):
+    """Response payload returned for account records."""
     id: UUID
     user_id: UUID
     name: str
@@ -37,6 +47,7 @@ class AccountResponse(BaseModel):
 
 
 class TransactionResponse(BaseModel):
+    """Detailed transaction payload returned by transaction-related endpoints."""
     id: UUID
     user_id: UUID
     batch_id: UUID
@@ -51,11 +62,13 @@ class TransactionResponse(BaseModel):
 
 
 class TransactionListResponse(BaseModel):
+    """Container model for paged or grouped transaction responses."""
     transactions: list[TransactionResponse]
     total: int
 
 
 class UploadResponse(BaseModel):
+    """Confirmation payload returned after a successful upload import."""
     batch_id: UUID
     bank_detected: str
     transaction_count: int
@@ -63,6 +76,7 @@ class UploadResponse(BaseModel):
 
 
 class ForecastPoint(BaseModel):
+    """Single forecast value for a future period."""
     date: date
     predicted_amount: float
     lower_bound: float
@@ -70,13 +84,47 @@ class ForecastPoint(BaseModel):
 
 
 class ForecastResponse(BaseModel):
+    """Forecast output for a single spending category."""
     category: Category
     forecast: list[ForecastPoint]
     insufficient_data: bool
 
 
 class InsightResponse(BaseModel):
+    """Insights payload combining anomaly summary and AI narration."""
     summary: str
     anomaly_count: int
     top_categories: list[dict]
     gemini_narration: str
+
+class PreviewTransaction(BaseModel):
+    """A single transaction shown during the upload preview step."""
+    date: date
+    description: str
+    amount: float
+    predicted_category: Category
+
+
+class UploadPreviewResponse(BaseModel):
+    """Response payload for the upload preview endpoint."""
+    account_id: UUID
+    filename: str
+    bank_detected: str
+    transactions: list[PreviewTransaction]
+
+
+class ConfirmTransaction(BaseModel):
+    """User-confirmed transaction data sent during import confirmation."""
+    date: date
+    description: str
+    amount: float
+    predicted_category: Category
+    final_category: Category
+
+
+class UploadConfirmRequest(BaseModel):
+    """Request body for finalizing an upload and storing transactions."""
+    account_id: UUID
+    filename: str
+    bank_detected: str
+    transactions: list[ConfirmTransaction]

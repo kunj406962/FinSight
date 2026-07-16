@@ -1,3 +1,4 @@
+# Parser for RBC-style bank statement CSV exports.
 import pandas as pd
 from app.services.parsers.base_parser import BaseParser, ParsedTransaction
 
@@ -11,7 +12,9 @@ RBC_REQUIRED_COLUMNS = {
 
 
 class RBCParser(BaseParser):
+    """Parse RBC transaction exports into the app's normalized transaction format."""
     def parse(self, df: pd.DataFrame) -> list[ParsedTransaction]:
+        """Convert each RBC row into a ParsedTransaction using the bank-specific columns."""
         transactions = []
         for _, row in df.iterrows():
             txn_date = pd.to_datetime(row["Transaction Date"], format="%m/%d/%Y").date()

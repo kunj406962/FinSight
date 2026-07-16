@@ -1,3 +1,4 @@
+# Authentication helpers that validate bearer tokens for protected routes.
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.services.db import get_supabase
@@ -8,6 +9,7 @@ bearer_scheme = HTTPBearer()
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ):
+    """Resolve the authenticated user from a bearer token or raise 401."""
     token = credentials.credentials
     response = get_supabase().auth.get_user(token)
     if not response or not response.user:

@@ -33,6 +33,26 @@ create table transactions (
   created_at timestamptz not null default now()
 );
 
+create table category_overrides (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users(id),
+    description text not null,
+    category text not null,
+    updated_at timestamp with time zone default now(),
+    unique (user_id, description)
+);
+
+alter table category_overrides disable row level security;
+
+alter table transactions drop constraint transactions_category_check;
+
+alter table transactions add constraint transactions_category_check
+  check (category in (
+    'Food', 'Groceries', 'Transport', 'Utilities', 'Entertainment',
+    'Health', 'Shopping', 'Income', 'Transfer', 'Savings',
+    'Rent/Mortgage', 'Education', 'Other'
+  ));
+
 -- Indexes for direct user_id scoping (every query filters on this first)
 create index idx_accounts_user_id on accounts(user_id);
 create index idx_upload_batches_user_id on upload_batches(user_id);

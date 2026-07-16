@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *.pkl
+!backend/app/ml/models/*.pkl
 .env
 *venv
 
