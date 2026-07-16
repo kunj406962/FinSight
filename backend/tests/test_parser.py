@@ -1,3 +1,4 @@
+# Parser and bank-format detection tests for uploaded statements.
 import io
 import pandas as pd
 from app.services.parsers.detector import detect_and_get_parser

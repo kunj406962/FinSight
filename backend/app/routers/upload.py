@@ -1,3 +1,4 @@
+# Upload workflow endpoints for previewing and confirming bank statement imports.
 import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from app.auth.dependencies import get_current_user
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 
 
 def _validate_account(supabase, account_id: str, user_id: str) -> dict:
+    """Ensure the requested account exists and belongs to the current user."""
     account_result = (
         supabase.table("accounts")
         .select("*")
@@ -33,6 +35,7 @@ def _validate_account(supabase, account_id: str, user_id: str) -> dict:
 def _dedupe_new_transactions(
     supabase, account_id: str, parsed_transactions: list[ParsedTransaction]
 ) -> list[ParsedTransaction]:
+    """Filter out transactions that already exist in prior uploads for the same account."""
     existing_batches = (
         supabase.table("upload_batches")
         .select("id")
@@ -61,6 +64,7 @@ def _dedupe_new_transactions(
 
 
 def _load_overrides(supabase, user_id: str) -> dict[str, str]:
+    """Load user-specific category overrides keyed by normalized description."""
     result = (
         supabase.table("category_overrides")
         .select("description,category")
@@ -71,6 +75,7 @@ def _load_overrides(supabase, user_id: str) -> dict[str, str]:
 
 
 def _classify(overrides: dict[str, str], description: str) -> str:
+    """Apply the classification order: transfer/savings keywords, override, then ML."""
     if is_savings(description):
         return "Savings"
     if is_transfer(description):
@@ -82,6 +87,7 @@ def _classify(overrides: dict[str, str], description: str) -> str:
 
 
 def _parse_csv(file: UploadFile):
+    """Read a CSV upload, detect the bank format, and parse it into transactions."""
     try:
         df = pd.read_csv(file.file)
     except Exception:
@@ -110,12 +116,19 @@ def _parse_csv(file: UploadFile):
     return bank_name, parsed_transactions
 
 
-@router.post("/preview", response_model=UploadPreviewResponse)
+@router.post(
+    "/preview",
+    response_model=UploadPreviewResponse,
+    summary="Preview uploaded transactions",
+    description="Upload a bank statement CSV, parse the transactions, and return a preview with predicted categories before they are committed to storage.",
+    response_description="Preview of parsed transactions",
+)
 async def upload_preview(
     account_id: str = Form(...),
     file: UploadFile = File(...),
     user=Depends(get_current_user),
 ):
+    """Parse an uploaded bank statement, remove duplicates for the selected account, and return the preview data for review."""
     supabase = get_supabase()
     _validate_account(supabase, account_id, user.id)
 
@@ -141,12 +154,20 @@ async def upload_preview(
     )
 
 
-@router.post("/confirm", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/confirm",
+    response_model=UploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Confirm uploaded transactions",
+    description="Persist the user-approved transactions from a bank upload, save any category overrides, and trigger anomaly analysis in the background.",
+    response_description="Import confirmation response",
+)
 async def upload_confirm(
     confirm_request: UploadConfirmRequest,
     background_tasks: BackgroundTasks,
     user=Depends(get_current_user)
 ):
+    """Persist confirmed transactions, save overrides, and trigger anomaly scoring for the imported batch."""
     supabase = get_supabase()
     account = _validate_account(supabase, str(confirm_request.account_id), user.id)
 
@@ -194,7 +215,7 @@ async def upload_confirm(
             supabase.table("category_overrides").upsert(
                 override_rows, on_conflict="user_id,description"
             ).execute()
-        
+
         background_tasks.add_task(score_user_transactions, supabase, user.id)
 
     return UploadResponse(

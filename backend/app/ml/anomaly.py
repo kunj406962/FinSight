@@ -1,3 +1,4 @@
+# Detects unusual spending patterns by scoring user transactions with an isolation forest.
 from pathlib import Path
 
 import joblib
@@ -18,10 +19,12 @@ SCORABLE_CATEGORIES = [c.value for c in Category if c.value not in ("Transfer", 
 
 
 def _model_path(user_id: str) -> Path:
+    """Return the persisted anomaly model path for a specific user."""
     return MODEL_DIR / f"anomaly_model_{user_id}.pkl"
 
 
 def _build_feature_frame(rows: list[dict]) -> pd.DataFrame:
+    """Convert transaction rows into a numeric feature matrix for the anomaly model."""
     df = pd.DataFrame(rows)
     # Fixed column set (reindexed to the full scorable category list) so the
     # feature matrix shape stays consistent across retrains, even if this

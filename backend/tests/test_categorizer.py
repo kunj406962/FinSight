@@ -1,3 +1,4 @@
+# Tests for the transaction categorizer model wrapper.
 from unittest.mock import MagicMock, patch
 
 from app.ml import categorizer

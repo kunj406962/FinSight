@@ -1,3 +1,4 @@
+# Tests covering the keyword-based transfer and savings detection helpers.
 from app.ml.transfer_detector import is_savings, is_transfer
 
 
