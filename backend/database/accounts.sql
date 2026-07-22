@@ -53,8 +53,18 @@ alter table transactions add constraint transactions_category_check
     'Rent/Mortgage', 'Education', 'Other'
   ));
 
+alter table transactions add column account_id uuid references accounts(id);
+
+update transactions t
+set account_id = ub.account_id
+from upload_batches ub
+where t.batch_id = ub.id;
+
+alter table transactions alter column account_id set not null;
+
 -- Indexes for direct user_id scoping (every query filters on this first)
 create index idx_accounts_user_id on accounts(user_id);
 create index idx_upload_batches_user_id on upload_batches(user_id);
 create index idx_transactions_user_id on transactions(user_id);
 create index idx_transactions_batch_id on transactions(batch_id);
+create index idx_transactions_account_id on transactions(account_id);

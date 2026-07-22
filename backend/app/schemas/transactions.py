@@ -51,6 +51,7 @@ class TransactionResponse(BaseModel):
     id: UUID
     user_id: UUID
     batch_id: UUID
+    account_id: UUID  # NEW
     date: date
     description: str
     amount: float
@@ -91,10 +92,10 @@ class ForecastResponse(BaseModel):
 
 
 class InsightResponse(BaseModel):
-    """Insights payload combining anomaly summary and AI narration."""
     summary: str
     anomaly_count: int
     top_categories: list[dict]
+    total_saved: float  # NEW
     gemini_narration: str
 
 class PreviewTransaction(BaseModel):
