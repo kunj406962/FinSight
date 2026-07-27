@@ -62,6 +62,21 @@ where t.batch_id = ub.id;
 
 alter table transactions alter column account_id set not null;
 
+create table forecast_cache (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users(id),
+    category text not null,
+    target_month date not null,  -- first-of-month
+    insufficient_data boolean not null default false,
+    predicted_amount float,
+    lower_bound float,
+    upper_bound float,
+    computed_at timestamp with time zone default now(),
+    unique (user_id, category, target_month)
+);
+
+alter table forecast_cache disable row level security;
+
 -- Indexes for direct user_id scoping (every query filters on this first)
 create index idx_accounts_user_id on accounts(user_id);
 create index idx_upload_batches_user_id on upload_batches(user_id);

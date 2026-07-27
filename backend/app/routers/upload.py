@@ -75,14 +75,14 @@ def _load_overrides(supabase, user_id: str) -> dict[str, str]:
 
 
 def _classify(overrides: dict[str, str], description: str) -> str:
-    """Apply the classification order: transfer/savings keywords, override, then ML."""
+    """Apply the classification order: override, then transfer/savings keywords, then ML."""
+    normalized = description.strip().upper()
+    if normalized in overrides:
+        return overrides[normalized]
     if is_savings(description):
         return "Savings"
     if is_transfer(description):
         return "Transfer"
-    normalized = description.strip().upper()
-    if normalized in overrides:
-        return overrides[normalized]
     return predict_category(description)
 
 
@@ -191,6 +191,7 @@ async def upload_confirm(
             {
                 "user_id": user.id,
                 "batch_id": batch_id,
+                "account_id": str(confirm_request.account_id),
                 "date": txn.date.isoformat(),
                 "description": txn.description,
                 "amount": txn.amount,
@@ -202,21 +203,19 @@ async def upload_confirm(
         ]
         supabase.table("transactions").insert(rows).execute()
 
-        override_rows = [
-            {
-                "user_id": user.id,
-                "description": txn.description.strip().upper(),
-                "category": txn.final_category,
-            }
-            for txn in confirm_request.transactions
-            if txn.final_category != txn.predicted_category
-        ]
-        if override_rows:
-            supabase.table("category_overrides").upsert(
-                override_rows, on_conflict="user_id,description"
-            ).execute()
-
-        background_tasks.add_task(score_user_transactions, supabase, user.id)
+        override_map = {
+        txn.description.strip().upper(): {
+            "user_id": user.id,
+            "description": txn.description.strip().upper(),
+            "category": txn.final_category,
+        }
+        for txn in confirm_request.transactions
+        if txn.final_category != txn.predicted_category
+    }
+    if override_map:
+        supabase.table("category_overrides").upsert(
+            list(override_map.values()), on_conflict="user_id,description"
+        ).execute()
 
     return UploadResponse(
         batch_id=batch_id,
