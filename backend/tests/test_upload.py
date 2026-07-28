@@ -177,10 +177,21 @@ def test_classify_savings_keyword_wins_first():
     mock_predict.assert_not_called()
 
 
-def test_classify_transfer_keyword_checked_before_override():
-    overrides = {"E-TRANSFER SENT": "Shopping"}  # deliberately wrong, to prove order
+def test_classify_override_checked_before_transfer_keyword():
+    """Week 4 reorder: overrides win even against a transfer-keyword match —
+    this is what unblocks Rent/Mortgage for users paying rent via e-transfer."""
+    overrides = {"E-TRANSFER SENT": "Rent/Mortgage"}
     with patch("app.routers.upload.predict_category") as mock_predict:
         result = upload._classify(overrides, "E-TRANSFER SENT")
+
+    assert result == "Rent/Mortgage"
+    mock_predict.assert_not_called()
+
+
+def test_classify_transfer_keyword_still_applies_without_override():
+    """No override present → transfer heuristic still fires as before."""
+    with patch("app.routers.upload.predict_category") as mock_predict:
+        result = upload._classify({}, "E-TRANSFER SENT")
 
     assert result == "Transfer"
     mock_predict.assert_not_called()

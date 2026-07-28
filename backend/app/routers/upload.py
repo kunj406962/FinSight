@@ -7,7 +7,6 @@ from app.services.parsers.detector import detect_and_get_parser
 from app.services.parsers.base_parser import ParsedTransaction
 from app.ml.transfer_detector import is_savings, is_transfer
 from app.ml.categorizer import predict_category
-from app.ml.anomaly import score_user_transactions
 from app.schemas.transactions import (
     UploadResponse,
     UploadPreviewResponse,
