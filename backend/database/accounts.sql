@@ -77,6 +77,17 @@ create table forecast_cache (
 
 alter table forecast_cache disable row level security;
 
+create table insights_cache (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users(id),
+    week_start date not null,
+    response jsonb not null,
+    computed_at timestamp with time zone default now(),
+    unique (user_id, week_start)
+);
+
+alter table insights_cache disable row level security;
+
 -- Indexes for direct user_id scoping (every query filters on this first)
 create index idx_accounts_user_id on accounts(user_id);
 create index idx_upload_batches_user_id on upload_batches(user_id);
