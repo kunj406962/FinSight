@@ -1,8 +1,10 @@
+import json
 import os
 from functools import lru_cache
-import json
 
 from google import genai
+from google.genai.errors import ServerError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 MODEL_NAME = "gemini-3.5-flash"
 
@@ -17,12 +19,19 @@ Rent/Mortgage is a fixed cost, not discretionary spend — don't lump it in with
 
 @lru_cache
 def _get_client() -> genai.Client:
-    """Lazily create the Gemini client, mirroring get_supabase()'s lazy-singleton pattern."""
     return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
+@retry(
+    retry=retry_if_exception_type(ServerError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    reraise=True,
+)
 def generate_narration(prompt_data: dict) -> str:
-    """Serialize the precomputed insights data and ask Gemini to narrate it in plain language."""
+    """Serialize the precomputed insights data and ask Gemini to narrate it in plain
+    language. Retries up to 3x on transient 5xx errors (e.g. model overload) before
+    giving up and letting the caller handle the failure."""
     client = _get_client()
     response = client.models.generate_content(
         model=MODEL_NAME,

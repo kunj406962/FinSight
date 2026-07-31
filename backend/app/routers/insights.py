@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, timedelta
+from google.genai.errors import ServerError
 
 from fastapi import APIRouter, Depends
 
@@ -176,8 +177,10 @@ def build_insights(supabase, user_id: str) -> dict:
         },
         "anomaly_count": anomaly_count,
     }
-    narration = generate_narration(prompt_data)
-
+    try:
+        narration = generate_narration(prompt_data)
+    except ServerError:
+        narration = "Insights narration is temporarily unavailable — the numbers above are still accurate. Try again shortly."
     return {
         "summary": summary,
         "anomaly_count": anomaly_count,
