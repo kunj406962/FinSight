@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+import json
 
 from google import genai
 
@@ -25,6 +26,6 @@ def generate_narration(prompt_data: dict) -> str:
     client = _get_client()
     response = client.models.generate_content(
         model=MODEL_NAME,
-        contents=f"{SYSTEM_PROMPT}\n\nData:\n{prompt_data}",
+        contents=f"{SYSTEM_PROMPT}\n\nData:\n{json.dumps(prompt_data, default=str)}",
     )
     return response.text # type: ignore

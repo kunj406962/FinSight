@@ -5,6 +5,7 @@ from app.routers import accounts
 from app.routers import upload
 from app.routers import transactions
 from app.routers import forecast
+from app.routers import insights
 from app.auth.dependencies import get_current_user
 
 app = FastAPI(title="FinSight API")
@@ -14,6 +15,7 @@ app.include_router(accounts.router)
 app.include_router(upload.router)
 app.include_router(transactions.router)
 app.include_router(forecast.router)
+app.include_router(insights.router)
 
 @app.get(
     "/health",
