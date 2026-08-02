@@ -1,3 +1,4 @@
+from datetime import date
 import pandas as pd
 from prophet import Prophet
 
@@ -115,3 +116,48 @@ def forecast_category(supabase, user_id: str, category: str) -> dict:
 
     income_forecast = _fit_no_regressor(income_series)
     return _fit_with_regressor(series, merged, income_forecast["predicted_amount"])
+
+def _current_month_start() -> date:
+    return date.today().replace(day=1)
+
+
+def _get_cached_forecast(supabase, user_id: str, category: str, month_start: date) -> dict | None:
+    result = (
+        supabase.table("forecast_cache")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("category", category)
+        .eq("target_month", month_start.isoformat())
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def _store_forecast_cache(supabase, user_id: str, category: str, month_start: date, result: dict) -> None:
+    payload = {
+        "user_id": user_id,
+        "category": category,
+        "target_month": month_start.isoformat(),
+        "insufficient_data": result["insufficient_data"],
+        "predicted_amount": result["predicted_amount"],
+        "lower_bound": result["lower_bound"],
+        "upper_bound": result["upper_bound"],
+    }
+    supabase.table("forecast_cache").upsert(
+        payload, on_conflict="user_id,category,target_month"
+    ).execute()
+
+
+def get_or_compute_forecast(supabase, user_id: str, category: str) -> dict:
+    """Return the current month's forecast for a category from forecast_cache if
+    already computed this month, otherwise compute via forecast_category() and
+    cache the result. Shared by both /forecast and /insights so neither duplicates
+    the cache logic. Caller is responsible for rejecting UNSUPPORTED_CATEGORIES first."""
+    month_start = _current_month_start()
+    cached = _get_cached_forecast(supabase, user_id, category, month_start)
+    if cached is not None:
+        return cached
+
+    result = forecast_category(supabase, user_id, category)
+    _store_forecast_cache(supabase, user_id, category, month_start, result)
+    return result

@@ -179,29 +179,13 @@ def test_forecast_category_regressor_falls_back_when_no_overlap():
     assert result["insufficient_data"] is False
 
 
-# ---------- app/routers/forecast.py ----------
-
-@pytest.fixture(autouse=True)
-def _override_auth():
-    app.dependency_overrides[get_current_user] = lambda: FakeUser("user-1")
-    yield
-    app.dependency_overrides.pop(get_current_user, None)
-
+# ---------- forecaster._current_month_start / get_or_compute_forecast (moved here from router) ----------
 
 def test_current_month_start_returns_first_of_month():
-    assert forecast_router._current_month_start().day == 1
+    assert forecaster._current_month_start().day == 1
 
 
-def test_get_forecast_unsupported_category_returns_400():
-    client = TestClient(app)
-    with patch.object(forecast_router, "forecast_category") as mock_forecast:
-        response = client.get("/forecast", params={"category": "Health"})
-
-    assert response.status_code == 400
-    mock_forecast.assert_not_called()
-
-
-def test_get_forecast_returns_cached_result_without_recomputing():
+def test_get_or_compute_forecast_returns_cached_without_recomputing():
     month_start = date.today().replace(day=1)
     cached_row = {
         "user_id": "user-1",
@@ -213,20 +197,15 @@ def test_get_forecast_returns_cached_result_without_recomputing():
         "upper_bound": 500.0,
     }
     fake_supabase = FakeSupabase({"forecast_cache": [cached_row]})
-    client = TestClient(app)
 
-    with patch.object(forecast_router, "get_supabase", return_value=fake_supabase), \
-         patch.object(forecast_router, "forecast_category") as mock_forecast:
-        response = client.get("/forecast", params={"category": "Groceries"})
+    with patch.object(forecaster, "forecast_category") as mock_forecast:
+        result = forecaster.get_or_compute_forecast(fake_supabase, "user-1", "Groceries")
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["insufficient_data"] is False
-    assert body["forecast"][0]["predicted_amount"] == 450.0
     mock_forecast.assert_not_called()
+    assert result["predicted_amount"] == 450.0
 
 
-def test_get_forecast_cache_miss_computes_and_stores():
+def test_get_or_compute_forecast_computes_and_stores_on_cache_miss():
     fake_supabase = FakeSupabase({"forecast_cache": []})
     fake_result = {
         "insufficient_data": False,
@@ -235,19 +214,55 @@ def test_get_forecast_cache_miss_computes_and_stores():
         "lower_bound": 250.0,
         "upper_bound": 350.0,
     }
+
+    with patch.object(forecaster, "forecast_category", return_value=fake_result) as mock_forecast:
+        result = forecaster.get_or_compute_forecast(fake_supabase, "user-1", "Groceries")
+
+    mock_forecast.assert_called_once()
+    assert fake_supabase.table("forecast_cache").upserted
+    assert result["predicted_amount"] == 300.0
+
+
+# ---------- app/routers/forecast.py ----------
+
+@pytest.fixture(autouse=True)
+def _override_auth():
+    app.dependency_overrides[get_current_user] = lambda: FakeUser("user-1")
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_get_forecast_unsupported_category_returns_400():
+    client = TestClient(app)
+    with patch.object(forecast_router, "get_or_compute_forecast") as mock_get_or_compute:
+        response = client.get("/forecast", params={"category": "Health"})
+
+    assert response.status_code == 400
+    mock_get_or_compute.assert_not_called()
+
+
+def test_get_forecast_returns_shaped_response():
+    fake_result = {
+        "insufficient_data": False,
+        "target_month": date.today().replace(day=1),
+        "predicted_amount": 450.0,
+        "lower_bound": 400.0,
+        "upper_bound": 500.0,
+    }
     client = TestClient(app)
 
-    with patch.object(forecast_router, "get_supabase", return_value=fake_supabase), \
-         patch.object(forecast_router, "forecast_category", return_value=fake_result) as mock_forecast:
+    with patch.object(forecast_router, "get_supabase", return_value=FakeSupabase({})), \
+         patch.object(forecast_router, "get_or_compute_forecast", return_value=fake_result) as mock_get_or_compute:
         response = client.get("/forecast", params={"category": "Groceries"})
 
     assert response.status_code == 200
-    mock_forecast.assert_called_once()
-    assert fake_supabase.table("forecast_cache").upserted
+    body = response.json()
+    assert body["insufficient_data"] is False
+    assert body["forecast"][0]["predicted_amount"] == 450.0
+    mock_get_or_compute.assert_called_once()
 
 
 def test_get_forecast_insufficient_data_response_shape():
-    fake_supabase = FakeSupabase({"forecast_cache": []})
     fake_result = {
         "insufficient_data": True,
         "target_month": None,
@@ -257,8 +272,8 @@ def test_get_forecast_insufficient_data_response_shape():
     }
     client = TestClient(app)
 
-    with patch.object(forecast_router, "get_supabase", return_value=fake_supabase), \
-         patch.object(forecast_router, "forecast_category", return_value=fake_result):
+    with patch.object(forecast_router, "get_supabase", return_value=FakeSupabase({})), \
+         patch.object(forecast_router, "get_or_compute_forecast", return_value=fake_result):
         response = client.get("/forecast", params={"category": "Groceries"})
 
     body = response.json()
