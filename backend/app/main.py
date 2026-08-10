@@ -7,6 +7,7 @@ from app.routers import upload
 from app.routers import transactions
 from app.routers import forecast
 from app.routers import insights
+from app.routers import email_hook
 from app.auth.dependencies import get_current_user
 import os
 from dotenv import load_dotenv
@@ -28,6 +29,7 @@ app.include_router(upload.router)
 app.include_router(transactions.router)
 app.include_router(forecast.router)
 app.include_router(insights.router)
+app.include_router(email_hook.router)
 
 @app.get(
     "/health",

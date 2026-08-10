@@ -17,6 +17,11 @@ class AuthRequest(BaseModel):
     password: str
 
 
+class EmailOnlyRequest(BaseModel):
+    """Input payload for endpoints that only need an email address."""
+    email: EmailStr
+
+
 @router.post(
     "/signup",
     status_code=status.HTTP_201_CREATED,
@@ -56,6 +61,30 @@ async def signup(body: AuthRequest):
         )
 
     return {"message": "Account created. Check your email to confirm."}
+
+
+@router.post(
+    "/resend-confirmation",
+    summary="Resend confirmation email",
+    description="Resend the signup confirmation email for an account that hasn't confirmed its email yet.",
+    response_description="Confirmation resend acknowledgement",
+)
+async def resend_confirmation(body: EmailOnlyRequest):
+    """Resend the signup confirmation email. Response is intentionally generic
+    (doesn't confirm whether the account exists or is already confirmed) —
+    same anti-enumeration posture as the forgot-password flow."""
+    try:
+        get_supabase().auth.resend({"type": "signup", "email": body.email})
+    except AuthError as e:
+        if e.code == "over_email_send_rate_limit":
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please wait before trying again.",
+            ) from e
+        logger.warning(
+            "Unhandled Supabase resend error: %s (code=%s)", e.message, e.code
+        )
+    return {"message": "If that account needs confirmation, a new email has been sent."}
 
 
 @router.post(
