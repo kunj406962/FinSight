@@ -2,16 +2,16 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { Login } from "../Login";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 // Mock the AuthContext properly
-vi.mock("../../context/AuthContext", () => ({
+vi.mock("../../context/useAuth", () => ({
   useAuth: vi.fn(),
 }));
 
 // Mock react-router-dom hooks
 const mockNavigate = vi.fn();
-const mockLocationState = { state: null };
+const mockLocationState: { state: { message?: string } | null } = { state: null };
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>(

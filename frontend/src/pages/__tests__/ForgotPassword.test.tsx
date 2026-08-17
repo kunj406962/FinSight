@@ -143,7 +143,7 @@ describe("ForgotPassword Component", () => {
   it("renders error Alert when Supabase request fails", async () => {
     vi.mocked(supabase.auth.resetPasswordForEmail).mockResolvedValueOnce({
       data: null,
-      error: { name: "AuthError", status: 400, message: "User not found" },
+      error: { name: "AuthError", status: 400, message: "User not found" } as any,
     });
 
     renderComponent();
