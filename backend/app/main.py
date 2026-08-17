@@ -1,14 +1,27 @@
 # Application entrypoint that wires together the FinSight FastAPI routers.
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from app.routers import auth
 from app.routers import accounts
 from app.routers import upload
 from app.routers import transactions
 from app.routers import forecast
 from app.routers import insights
+from app.routers import email_hook
 from app.auth.dependencies import get_current_user
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="FinSight API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("VITE_API_URL")], # type: ignore
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth.router)
 app.include_router(accounts.router)
@@ -16,6 +29,7 @@ app.include_router(upload.router)
 app.include_router(transactions.router)
 app.include_router(forecast.router)
 app.include_router(insights.router)
+app.include_router(email_hook.router)
 
 @app.get(
     "/health",
