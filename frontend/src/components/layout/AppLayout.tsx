@@ -74,13 +74,16 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [prevPathname, setPrevPathname] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const location = useLocation();
-
-  // Close mobile drawer on route navigation
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
+  
+  if (location.pathname !== prevPathname) {
+    setPrevPathname(location.pathname);
+    if (mobileMenuOpen) {
+      setMobileMenuOpen(false);
+    }
+  }
 
   // Lock scroll when mobile menu is open & listen for Escape key
   useEffect(() => {
