@@ -1,14 +1,16 @@
 import { useState, type ReactNode } from "react";
 import client from "../api/client";
 import { setToken, clearToken } from "../api/authToken";
-import { AuthContext } from "./auth-context-value";
+import { AuthContext, type AuthUser } from "./auth-context-value";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   async function login(email: string, password: string): Promise<void> {
     const response = await client.post("/auth/login", { email, password });
     setToken(response.data.access_token);
+    setUser({ email });
     setIsAuthenticated(true);
   }
 
@@ -21,12 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await client.post("/auth/logout");
     } finally {
       clearToken();
+      setUser(null);
       setIsAuthenticated(false);
     }
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, signup, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );
