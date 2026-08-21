@@ -54,7 +54,32 @@ export function Accounts() {
   }
 
   useEffect(() => {
-    fetchAccounts();
+    let isMounted = true;
+    
+    async function loadData() {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const response = await client.get<Account[]>("/accounts");
+        if (isMounted) {
+          setAccounts(response.data);
+        }
+      } catch {
+        if (isMounted) {
+          setLoadError("Couldn't load your accounts. Please try again.");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+    
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   function handleFormSubmitRequest(e: FormEvent) {
