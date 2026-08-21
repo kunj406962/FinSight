@@ -35,6 +35,7 @@ class AccountCreate(BaseModel):
     """Request body for creating a new account."""
     name: str
     account_type: AccountType
+    starting_balance: float=0.0
 
 
 class AccountResponse(BaseModel):
@@ -43,6 +44,8 @@ class AccountResponse(BaseModel):
     user_id: UUID
     name: str
     account_type: AccountType
+    starting_balance: float         
+    current_balance: float 
     created_at: datetime
 
 
@@ -129,3 +132,14 @@ class UploadConfirmRequest(BaseModel):
     filename: str
     bank_detected: str
     transactions: list[ConfirmTransaction]
+
+class ReconciliationCreate(BaseModel):
+    reconciled_balance: float
+    reconciled_at: date
+
+class ReconciliationResponse(BaseModel):
+    id: UUID
+    account_id: UUID
+    reconciled_balance: float
+    reconciled_at: date
+    created_at: datetime
