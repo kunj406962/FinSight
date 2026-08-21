@@ -13,7 +13,7 @@ const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] = [
 ];
 
 interface AccountFormProps {
-  onSubmit: (e: FormEvent) => Promise<void>;
+  onRequestCreateConfirm: (e: FormEvent) => void;
   name: string;
   setName: (v: string) => void;
   accountType: AccountType;
@@ -26,7 +26,7 @@ interface AccountFormProps {
 }
 
 export function AccountForm({
-  onSubmit,
+  onRequestCreateConfirm,
   name,
   setName,
   accountType,
@@ -39,7 +39,7 @@ export function AccountForm({
 }: AccountFormProps) {
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={onRequestCreateConfirm}
       className="space-y-4 p-5 rounded-xl border border-slate-800 bg-slate-900/90 shadow-lg"
       noValidate
     >
