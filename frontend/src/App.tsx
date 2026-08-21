@@ -5,6 +5,7 @@ import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
 import { ResendConfirmation } from "./pages/ResendConfirmation";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
+import { Accounts } from "./pages/Accounts";
 
 function Home() {
   return (
@@ -24,7 +25,9 @@ function App() {
       <Route path="/resend-confirmation" element={<ResendConfirmation />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Home />} />
+        <Route path="/accounts" element={<Accounts />} />
       </Route>
+      <Route path="*" element={<div>404 Not Found</div>} />            
     </Routes>
   );
 }

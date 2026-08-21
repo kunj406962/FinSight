@@ -88,6 +88,30 @@ create table insights_cache (
 
 alter table insights_cache disable row level security;
 
+alter table accounts add column starting_balance float not null default 0;
+
+create table account_reconciliations (
+    id uuid primary key default gen_random_uuid(),
+    account_id uuid not null references accounts(id) on delete cascade,
+    user_id uuid not null references auth.users(id),
+    reconciled_balance float not null,
+    reconciled_at date not null,
+    created_at timestamp with time zone default now()
+);
+
+alter table account_reconciliations disable row level security;
+
+-- Verify the real constraint names in Supabase first (Table Editor or
+-- information_schema) — these are Postgres's typical auto-generated names,
+-- not confirmed against your actual schema
+alter table upload_batches drop constraint upload_batches_account_id_fkey;
+alter table upload_batches add constraint upload_batches_account_id_fkey
+  foreign key (account_id) references accounts(id) on delete cascade;
+
+alter table transactions drop constraint transactions_account_id_fkey;
+alter table transactions add constraint transactions_account_id_fkey
+  foreign key (account_id) references accounts(id) on delete cascade;
+
 -- Indexes for direct user_id scoping (every query filters on this first)
 create index idx_accounts_user_id on accounts(user_id);
 create index idx_upload_batches_user_id on upload_batches(user_id);
