@@ -61,7 +61,7 @@ class TransactionResponse(BaseModel):
     category: Category
     account_type: str
     is_anomaly: bool
-    anomaly_score: float
+    anomaly_score: float | None
     created_at: datetime
 
 
