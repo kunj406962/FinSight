@@ -1,5 +1,5 @@
 // src/pages/AccountDetail.tsx
-import { useState, useEffect, useCallback, type ChangeEvent, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, type ChangeEvent } from "react";
 import { useParams } from "react-router-dom";
 import client from "../api/client";
 import type { Account } from "./Accounts";
@@ -8,7 +8,7 @@ import { Input } from "../components/ui/Input";
 import { Alert } from "../components/ui/Alert";
 import { ConfirmationDialog } from "../components/ui/ConfirmationDialog";
 import { formatCurrency } from "../utils/FormatCurrency";
-import {type Transaction, type Category, CATEGORY_OPTIONS, type Reconciliation } from "../types/models";
+import { type Transaction, type Category, CATEGORY_OPTIONS, type Reconciliation } from "../types/models";
 import { TransactionFilterBar } from "../components/transactions/TransactionFilterBar";
 import { TransactionRow } from "../components/transactions/TransactionRow";
 
@@ -29,20 +29,22 @@ interface UploadPreviewResponse {
 export function AccountDetail() {
   const { accountId } = useParams<{ accountId: string }>();
 
+  // --- Account State ---
   const [account, setAccount] = useState<Account | null>(null);
   const [isLoadingAccount, setIsLoadingAccount] = useState(true);
   const [accountError, setAccountError] = useState("");
 
+  // --- Transactions State ---
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [transactionsError, setTransactionsError] = useState("");
 
-  // Filtering States
+  // --- Filter State ---
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
 
-  // Upload States
+  // --- Upload State ---
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState("");
@@ -51,12 +53,12 @@ export function AccountDetail() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState("");
   
-  // Dialog States
+  // --- Dialog States ---
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [showUploadConfirm, setShowUploadConfirm] = useState(false);
   const [showReconcileConfirm, setShowReconcileConfirm] = useState(false);
 
-  // Reconciliation States
+  // --- Reconciliation State ---
   const [reconciliations, setReconciliations] = useState<Reconciliation[]>([]);
   const [isLoadingReconciliations, setIsLoadingReconciliations] = useState(true);
   const [reconciledBalance, setReconciledBalance] = useState("");
@@ -66,7 +68,6 @@ export function AccountDetail() {
 
   const fetchAccount = useCallback(async () => {
     if (!accountId) return;
-    setIsLoadingAccount(true);
     try {
       const response = await client.get<Account[]>("/accounts");
       const found = response.data.find((a) => a.id === accountId);
@@ -81,12 +82,15 @@ export function AccountDetail() {
 
   const fetchTransactions = useCallback(async () => {
     if (!accountId) return;
-    setIsLoadingTransactions(true);
     try {
-      const response = await client.get<{ transactions: Transaction[] }>("/transactions", { params: { account_id: accountId } });
-      setTransactions(response.data.transactions);
+      const response = await client.get<{ transactions: Transaction[] }>(
+        "/transactions",
+        { params: { account_id: accountId } }
+      );
+      setTransactions(response.data.transactions ?? []);
+      setTransactionsError("");
     } catch {
-      setTransactionsError("Couldn't load transactions.");
+      setTransactionsError("Couldn't load transactions for this account.");
     } finally {
       setIsLoadingTransactions(false);
     }
@@ -94,23 +98,59 @@ export function AccountDetail() {
 
   const fetchReconciliations = useCallback(async () => {
     if (!accountId) return;
-    setIsLoadingReconciliations(true);
     try {
       const response = await client.get<Reconciliation[]>(`/accounts/${accountId}/reconciliations`);
       setReconciliations(response.data);
     } catch {
-      setReconciliationError("Couldn't load history.");
+      setReconciliationError("Couldn't load reconciliation history.");
     } finally {
       setIsLoadingReconciliations(false);
     }
   }, [accountId]);
 
   useEffect(() => {
-    fetchAccount();
-    fetchTransactions();
-    fetchReconciliations();
-  }, [fetchAccount, fetchTransactions, fetchReconciliations]);
+    if (!accountId) return;
 
+    (async () => {
+      try {
+        const response = await client.get<Account[]>("/accounts");
+        const found = response.data.find((a) => a.id === accountId);
+        if (found) setAccount(found);
+        else setAccountError("Account not found.");
+      } catch {
+        setAccountError("Couldn't load this account.");
+      } finally {
+        setIsLoadingAccount(false);
+      }
+    })();
+
+    (async () => {
+      try {
+        const response = await client.get<{ transactions: Transaction[] }>(
+          "/transactions",
+          { params: { account_id: accountId } }
+        );
+        setTransactions(response.data.transactions ?? []);
+        setTransactionsError("");
+      } catch {
+        setTransactionsError("Couldn't load transactions for this account.");
+      } finally {
+        setIsLoadingTransactions(false);
+      }
+    })();
+
+    (async () => {
+      try {
+        const response = await client.get<Reconciliation[]>(`/accounts/${accountId}/reconciliations`);
+        setReconciliations(response.data);
+      } catch {
+        setReconciliationError("Couldn't load reconciliation history.");
+      } finally {
+        setIsLoadingReconciliations(false);
+      }
+    })();
+  }, [accountId]);
+ 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
       const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -132,7 +172,7 @@ export function AccountDetail() {
       setPreview(response.data);
       setFinalCategories(response.data.transactions.map((t) => t.predicted_category));
     } catch {
-      setPreviewError("Couldn't preview this file.");
+      setPreviewError("Couldn't preview this file. Please check the format and try again.");
     } finally {
       setIsPreviewing(false);
     }
@@ -141,7 +181,7 @@ export function AccountDetail() {
   const handleConfirmUpload = async () => {
     if (!preview || !accountId) return;
     setIsConfirming(true);
-    setShowUploadConfirm(false);
+    setConfirmError("");
     try {
       await client.post("/upload/confirm", {
         account_id: accountId,
@@ -157,6 +197,7 @@ export function AccountDetail() {
       });
       setPreview(null);
       setSelectedFile(null);
+      setShowUploadConfirm(false);
       await Promise.all([fetchAccount(), fetchTransactions()]);
     } catch {
       setConfirmError("Couldn't save these transactions.");
@@ -168,13 +209,14 @@ export function AccountDetail() {
   const handleRecordReconciliation = async () => {
     if (!accountId || !reconciledBalance) return;
     setIsSubmittingReconciliation(true);
-    setShowReconcileConfirm(false);
+    setReconciliationError("");
     try {
       await client.post(`/accounts/${accountId}/reconciliations`, {
         reconciled_balance: parseFloat(reconciledBalance) || 0,
         reconciled_at: reconciledAt,
       });
       setReconciledBalance("");
+      setShowReconcileConfirm(false);
       await Promise.all([fetchAccount(), fetchReconciliations()]);
     } catch {
       setReconciliationError("Couldn't record this reconciliation.");
@@ -188,19 +230,21 @@ export function AccountDetail() {
 
   return (
     <div className="space-y-8 max-w-4xl">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-slate-100">{account.name}</h1>
-        <p className="text-xs text-slate-400">{account.account_type} · Starting balance {formatCurrency(account.starting_balance)}</p>
-        <p className={`text-lg font-medium ${account.current_balance < 0 ? "text-rose-400" : "text-slate-100"}`}>
+        <p className="text-xs text-slate-400">{account.account_type.replace("_", " ")} · Starting balance {formatCurrency(account.starting_balance)}</p>
+        <p data-testid="current-balance" className={`text-lg font-medium ${account.current_balance < 0 ? "text-rose-400" : "text-slate-100"}`}>
           {formatCurrency(account.current_balance)}
         </p>
       </div>
 
+      {/* Upload Section */}
       <section className="space-y-4">
-        <h2 className="text-lg font-medium text-slate-100">Upload Statement</h2>
+        <h2  className="text-lg font-medium text-slate-100">Upload Statement</h2>
         {!preview ? (
           <div className="space-y-2">
-            <input type="file" accept=".csv" onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)} className="text-slate-300" />
+            <input aria-label="Upload Statement" type="file" accept=".csv" onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFile(e.target.files?.[0] ?? null)} className="text-slate-300" />
             {previewError && <Alert type="error" message={previewError} />}
             <Button onClick={handlePreviewSubmit} isLoading={isPreviewing} disabled={!selectedFile}>Preview Upload</Button>
           </div>
@@ -216,7 +260,7 @@ export function AccountDetail() {
                   </div>
                   <select
                     value={finalCategories[i]}
-                    onChange={(e) => setFinalCategories((prev) => { const next = [...prev]; next[i] = e.target.value as Category; return next; })}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setFinalCategories((prev) => { const next = [...prev]; next[i] = e.target.value as Category; return next; })}
                     className="bg-slate-950 border border-slate-700 rounded-md text-sm text-slate-100 p-1.5 focus:ring-1 focus:ring-emerald-500"
                   >
                     {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -233,15 +277,34 @@ export function AccountDetail() {
         )}
       </section>
 
+      {/* Reconcile Section */}
       <section className="space-y-4">
         <h2 className="text-lg font-medium text-slate-100">Reconcile Balance</h2>
         <div className="space-y-3">
-          <Input label="Reconciled balance" type="number" step="0.01" value={reconciledBalance} onChange={(e) => setReconciledBalance(e.target.value)} />
-          <Input label="As of date" type="date" value={reconciledAt} onChange={(e) => setReconciledAt(e.target.value)} />
-          <Button onClick={() => setShowReconcileConfirm(true)} disabled={!reconciledBalance} variant="primary">Record Reconciliation</Button>
+          <Input label="Reconciled balance" type="number" step="0.01" value={reconciledBalance} onChange={(e: ChangeEvent<HTMLInputElement>) => setReconciledBalance(e.target.value)} />
+          <Input label="As of date" type="date" value={reconciledAt} onChange={(e: ChangeEvent<HTMLInputElement>) => setReconciledAt(e.target.value)} />
+          {reconciliationError && <Alert type="error" message={reconciliationError} />}
+          <Button onClick={() => setShowReconcileConfirm(true)} disabled={!reconciledBalance || isSubmittingReconciliation} isLoading={isSubmittingReconciliation} variant="primary">Record Reconciliation</Button>
+        </div>
+
+        <div className="mt-6 space-y-2">
+          <h3 className="text-sm font-medium text-slate-300">History</h3>
+          {isLoadingReconciliations ? (
+            <p className="text-xs text-slate-400">Loading history...</p>
+          ) : reconciliations.length === 0 ? (
+            <p className="text-xs text-slate-500">No reconciliations recorded yet.</p>
+          ) : (
+            reconciliations.map((r) => (
+              <div key={r.id} className="flex justify-between text-sm text-slate-100 border-b border-slate-900 py-2">
+                <span className="text-slate-400">{r.reconciled_at}</span>
+                <span className="font-medium">{formatCurrency(r.reconciled_balance)}</span>
+              </div>
+            ))
+          )}
         </div>
       </section>
 
+      {/* Transactions Section */}
       <section className="space-y-4">
         <h2 className="text-lg font-medium text-slate-100">Transactions</h2>
         <TransactionFilterBar 
@@ -249,28 +312,40 @@ export function AccountDetail() {
           categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
           monthFilter={monthFilter} onMonthChange={setMonthFilter}
         />
-        {isLoadingTransactions && <p className="text-xs text-slate-400">Loading...</p>}
-        {!isLoadingTransactions && filteredTransactions.length === 0 && <p className="text-xs text-slate-400">No transactions match your filters.</p>}
-        {filteredTransactions.map((t) => <TransactionRow key={t.id} transaction={t} />)}
+        {transactionsError && <Alert type="error" message={transactionsError} />}
+        
+        {isLoadingTransactions ? (
+          <p className="text-xs text-slate-400">Loading transactions...</p>
+        ) : filteredTransactions.length === 0 ? (
+          <div className="py-6 text-center border border-dashed border-slate-800 rounded-lg bg-slate-900/30">
+            <p className="text-sm font-medium text-slate-300">No transactions yet</p>
+            <p className="text-xs text-slate-500 mt-1">Adjust your filters or upload a statement to see your history.</p>
+          </div>
+        ) : (
+          filteredTransactions.map((t) => <TransactionRow key={t.id} transaction={t} />)
+        )}
       </section>
 
+      {/* Dialogs */}
       <ConfirmationDialog
         isOpen={showDiscardConfirm} title="Discard Preview"
         description="Are you sure you want to discard this upload? This action cannot be undone."
         confirmText="Discard" confirmVariant="danger"
-        onConfirm={() => { setPreview(null); setShowDiscardConfirm(false); }}
+        onConfirm={() => { setPreview(null); setShowDiscardConfirm(false); setSelectedFile(null); }}
         onCancel={() => setShowDiscardConfirm(false)}
       />
       <ConfirmationDialog
         isOpen={showUploadConfirm} title="Confirm Upload"
         description="Are you sure you want to save these transactions to your account?"
         confirmText="Save Transactions" confirmVariant="primary"
+        isLoading={isConfirming}
         onConfirm={handleConfirmUpload} onCancel={() => setShowUploadConfirm(false)}
       />
       <ConfirmationDialog
         isOpen={showReconcileConfirm} title="Record Reconciliation"
-        description={`Record a balance of ${formatCurrency(parseFloat(reconciledBalance))} for this account?`}
+        description={`Record a balance of ${formatCurrency(parseFloat(reconciledBalance) || 0)} for this account?`}
         confirmText="Record" confirmVariant="primary"
+        isLoading={isSubmittingReconciliation}
         onConfirm={handleRecordReconciliation} onCancel={() => setShowReconcileConfirm(false)}
       />
     </div>
