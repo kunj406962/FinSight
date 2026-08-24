@@ -9,6 +9,7 @@ from app.schemas.transactions import (
     AccountResponse,
     ReconciliationCreate,
     ReconciliationResponse,
+    UploadBatchResponse
 )
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -193,3 +194,53 @@ async def list_reconciliations(account_id: str, user=Depends(get_current_user)):
         .execute()
     )
     return response.data
+
+@router.get(
+    "/{account_id}/upload-batches",
+    response_model=list[UploadBatchResponse],
+    summary="List upload batches for an account",
+    description="Return every CSV upload batch recorded for this account, newest first, so a user can review or delete a past upload.",
+    response_description="List of upload batches",
+)
+async def list_upload_batches(account_id: str, user=Depends(get_current_user)):
+    """Return the account's upload batch history, newest first."""
+    supabase = get_supabase()
+    _get_owned_account(supabase, account_id, user.id)
+    response = (
+        supabase.table("upload_batches")
+        .select("*")
+        .eq("account_id", account_id)
+        .order("uploaded_at", desc=True)
+        .execute()
+    )
+    return response.data
+
+
+@router.delete(
+    "/{account_id}/upload-batches/{batch_id}",
+    status_code=204,
+    summary="Delete an upload batch",
+    description="Permanently delete an upload batch and every transaction that came from it, so the same CSV can be re-uploaded without being blocked by deduplication.",
+    response_description="No content",
+)
+async def delete_upload_batch(account_id: str, batch_id: str, user=Depends(get_current_user)):
+    """Delete an upload batch and its transactions, scoped to the owning account/user."""
+    supabase = get_supabase()
+    _get_owned_account(supabase, account_id, user.id)
+
+    batch_check = (
+        supabase.table("upload_batches")
+        .select("id")
+        .eq("id", batch_id)
+        .eq("account_id", account_id)
+        .eq("user_id", user.id)
+        .execute()
+    )
+    if not batch_check.data:
+        raise HTTPException(status_code=404, detail="Upload batch not found.")
+
+    # Explicit delete, not reliant on batch_id's FK cascade being configured
+    # (unconfirmed -- unlike account_id's FK, which Week 6 explicitly set to
+    # ON DELETE CASCADE). Order matters: transactions first, then the batch.
+    supabase.table("transactions").delete().eq("batch_id", batch_id).eq("user_id", user.id).execute()
+    supabase.table("upload_batches").delete().eq("id", batch_id).execute()

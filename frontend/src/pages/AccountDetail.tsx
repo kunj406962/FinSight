@@ -8,7 +8,7 @@ import { Input } from "../components/ui/Input";
 import { Alert } from "../components/ui/Alert";
 import { ConfirmationDialog } from "../components/ui/ConfirmationDialog";
 import { formatCurrency } from "../utils/FormatCurrency";
-import { type Transaction, type Category, CATEGORY_OPTIONS, type Reconciliation } from "../types/models";
+import { type Transaction, type Category, CATEGORY_OPTIONS, type Reconciliation, type UploadBatch } from "../types/models";
 import { TransactionFilterBar } from "../components/transactions/TransactionFilterBar";
 import { TransactionRow } from "../components/transactions/TransactionRow";
 
@@ -52,7 +52,7 @@ export function AccountDetail() {
   const [finalCategories, setFinalCategories] = useState<Category[]>([]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState("");
-  
+
   // --- Dialog States ---
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [showUploadConfirm, setShowUploadConfirm] = useState(false);
@@ -65,6 +65,13 @@ export function AccountDetail() {
   const [reconciledAt, setReconciledAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [isSubmittingReconciliation, setIsSubmittingReconciliation] = useState(false);
   const [reconciliationError, setReconciliationError] = useState("");
+
+  // --- Upload History State ---
+  const [uploadBatches, setUploadBatches] = useState<UploadBatch[]>([]);
+  const [isLoadingBatches, setIsLoadingBatches] = useState(true);
+  const [batchesError, setBatchesError] = useState("");
+  const [pendingDeleteBatchId, setPendingDeleteBatchId] = useState<string | null>(null);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
   const fetchAccount = useCallback(async () => {
     if (!accountId) return;
@@ -105,6 +112,18 @@ export function AccountDetail() {
       setReconciliationError("Couldn't load reconciliation history.");
     } finally {
       setIsLoadingReconciliations(false);
+    }
+  }, [accountId]);
+
+  const fetchUploadBatches = useCallback(async () => {
+    if (!accountId) return;
+    try {
+      const response = await client.get<UploadBatch[]>(`/accounts/${accountId}/upload-batches`);
+      setUploadBatches(response.data);
+    } catch {
+      setBatchesError("Couldn't load upload history.");
+    } finally {
+      setIsLoadingBatches(false);
     }
   }, [accountId]);
 
@@ -149,8 +168,19 @@ export function AccountDetail() {
         setIsLoadingReconciliations(false);
       }
     })();
+
+    (async () => {
+      try {
+        const response = await client.get<UploadBatch[]>(`/accounts/${accountId}/upload-batches`);
+        setUploadBatches(response.data);
+      } catch {
+        setBatchesError("Couldn't load upload history.");
+      } finally {
+        setIsLoadingBatches(false);
+      }
+    })();
   }, [accountId]);
- 
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
       const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -198,7 +228,7 @@ export function AccountDetail() {
       setPreview(null);
       setSelectedFile(null);
       setShowUploadConfirm(false);
-      await Promise.all([fetchAccount(), fetchTransactions()]);
+      await Promise.all([fetchAccount(), fetchTransactions(), fetchUploadBatches()]);
     } catch {
       setConfirmError("Couldn't save these transactions.");
     } finally {
@@ -225,6 +255,20 @@ export function AccountDetail() {
     }
   };
 
+  const handleConfirmDeleteBatch = async () => {
+    if (!pendingDeleteBatchId || !accountId) return;
+    setIsDeletingBatch(true);
+    try {
+      await client.delete(`/accounts/${accountId}/upload-batches/${pendingDeleteBatchId}`);
+      setPendingDeleteBatchId(null);
+      await Promise.all([fetchAccount(), fetchTransactions(), fetchUploadBatches()]);
+    } catch {
+      setBatchesError("Couldn't delete this upload. Please try again.");
+    } finally {
+      setIsDeletingBatch(false);
+    }
+  };
+
   if (isLoadingAccount) return <div className="space-y-6 max-w-4xl text-slate-400">Loading account...</div>;
   if (accountError || !account) return <Alert type="error" message={accountError || "Account not found."} />;
 
@@ -241,7 +285,7 @@ export function AccountDetail() {
 
       {/* Upload Section */}
       <section className="space-y-4">
-        <h2  className="text-lg font-medium text-slate-100">Upload Statement</h2>
+        <h2 className="text-lg font-medium text-slate-100">Upload Statement</h2>
         {!preview ? (
           <div className="space-y-2">
             <input aria-label="Upload Statement" type="file" accept=".csv" onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFile(e.target.files?.[0] ?? null)} className="text-slate-300" />
@@ -277,6 +321,38 @@ export function AccountDetail() {
         )}
       </section>
 
+      {/* Upload History Section */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-medium text-slate-100">Upload History</h2>
+        {batchesError && <Alert type="error" message={batchesError} />}
+        {isLoadingBatches ? (
+          <p className="text-xs text-slate-400">Loading upload history...</p>
+        ) : uploadBatches.length === 0 ? (
+          <p className="text-xs text-slate-500">No uploads yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {uploadBatches.map((b) => (
+              <div key={b.id} className="flex items-center justify-between text-sm text-slate-100 border border-slate-800 rounded-md p-3">
+                <div>
+                  <div className="font-medium">{b.filename}</div>
+                  <div className="text-xs text-slate-400">
+                    {b.bank_detected} · {b.transaction_count} transactions · {new Date(b.uploaded_at).toLocaleDateString()}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  title="Delete upload"
+                  onClick={() => setPendingDeleteBatchId(b.id)}
+                  className="text-rose-400 hover:text-rose-300 text-xs font-medium"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* Reconcile Section */}
       <section className="space-y-4">
         <h2 className="text-lg font-medium text-slate-100">Reconcile Balance</h2>
@@ -307,13 +383,13 @@ export function AccountDetail() {
       {/* Transactions Section */}
       <section className="space-y-4">
         <h2 className="text-lg font-medium text-slate-100">Transactions</h2>
-        <TransactionFilterBar 
+        <TransactionFilterBar
           searchQuery={searchQuery} onSearchChange={setSearchQuery}
           categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
           monthFilter={monthFilter} onMonthChange={setMonthFilter}
         />
         {transactionsError && <Alert type="error" message={transactionsError} />}
-        
+
         {isLoadingTransactions ? (
           <p className="text-xs text-slate-400">Loading transactions...</p>
         ) : filteredTransactions.length === 0 ? (
@@ -347,6 +423,13 @@ export function AccountDetail() {
         confirmText="Record" confirmVariant="primary"
         isLoading={isSubmittingReconciliation}
         onConfirm={handleRecordReconciliation} onCancel={() => setShowReconcileConfirm(false)}
+      />
+      <ConfirmationDialog
+        isOpen={pendingDeleteBatchId !== null} title="Delete Upload"
+        description="Are you sure you want to delete this upload? All transactions from this file will be permanently deleted. This cannot be undone, but it lets you re-upload the same file."
+        confirmText="Delete Upload" confirmVariant="danger"
+        isLoading={isDeletingBatch}
+        onConfirm={handleConfirmDeleteBatch} onCancel={() => setPendingDeleteBatchId(null)}
       />
     </div>
   );

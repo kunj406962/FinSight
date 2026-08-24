@@ -31,3 +31,12 @@ export interface Reconciliation {
   reconciled_at: string;
   created_at: string;
 }
+
+export interface UploadBatch {
+  id: string;
+  account_id: string;
+  filename: string;
+  bank_detected: string;
+  transaction_count: number;
+  uploaded_at: string;
+}
