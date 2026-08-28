@@ -82,7 +82,9 @@ describe("AccountDetail Page", () => {
         return Promise.resolve({ data: [mockAccount] });
       }
       if (url === "/transactions") {
-        return Promise.resolve({ data: { transactions: mockTransactions } });
+        return Promise.resolve({
+          data: { transactions: mockTransactions, total: mockTransactions.length },
+        });
       }
       if (url.includes("/reconciliations")) {
         return Promise.resolve({ data: mockReconciliations });
@@ -122,7 +124,33 @@ describe("AccountDetail Page", () => {
     expect(screen.getByText("2026-08-20")).toBeInTheDocument();
   });
 
-  it("filters transactions based on search input", async () => {
+  it("re-fetches transactions from the server after a debounced search input", async () => {
+    // Search is now server-side (GET /transactions?search=...), not an
+    // in-memory filter -- the mock has to branch on the request's search
+    // param and return a different page for it, and the assertion has to
+    // wait out the ~400ms debounce before the filtered request fires.
+    vi.mocked(client.get).mockImplementation(
+      (url: string, config?: { params?: Record<string, unknown> }) => {
+        if (url === "/accounts") {
+          return Promise.resolve({ data: [mockAccount] });
+        }
+        if (url === "/transactions") {
+          if (config?.params?.search === "salary") {
+            return Promise.resolve({
+              data: { transactions: [mockTransactions[1]], total: 1 },
+            });
+          }
+          return Promise.resolve({
+            data: { transactions: mockTransactions, total: mockTransactions.length },
+          });
+        }
+        if (url.includes("/reconciliations")) {
+          return Promise.resolve({ data: mockReconciliations });
+        }
+        return Promise.reject(new Error("Not found"));
+      }
+    );
+
     renderComponent();
 
     await waitFor(() => {
@@ -132,9 +160,15 @@ describe("AccountDetail Page", () => {
     const searchInput = screen.getByLabelText(/search transactions/i);
     fireEvent.change(searchInput, { target: { value: "salary" } });
 
-    // "Grocery Store" should disappear, "Salary Deposit" should remain
-    expect(screen.queryByText("Grocery Store")).not.toBeInTheDocument();
-    expect(screen.getByText("Salary Deposit")).toBeInTheDocument();
+    // Debounced -- the filtered request only fires ~400ms after typing
+    // stops, so give waitFor enough headroom to catch it.
+    await waitFor(
+      () => {
+        expect(screen.queryByText("Grocery Store")).not.toBeInTheDocument();
+        expect(screen.getByText("Salary Deposit")).toBeInTheDocument();
+      },
+      { timeout: 1000 }
+    );
   });
 
   it("displays error alert if account fetch fails", async () => {

@@ -1,5 +1,5 @@
 // src/pages/AccountDetail.tsx
-import { useState, useEffect, useCallback, useMemo, type ChangeEvent } from "react";
+import { useState, useEffect, useCallback, type ChangeEvent } from "react";
 import { useParams } from "react-router-dom";
 import client from "../api/client";
 import type { Account } from "./Accounts";
@@ -8,9 +8,11 @@ import { Input } from "../components/ui/Input";
 import { Alert } from "../components/ui/Alert";
 import { ConfirmationDialog } from "../components/ui/ConfirmationDialog";
 import { formatCurrency } from "../utils/FormatCurrency";
-import { type Transaction, type Category, CATEGORY_OPTIONS, type Reconciliation, type UploadBatch } from "../types/models";
+import { type Category, CATEGORY_OPTIONS, type Reconciliation, type UploadBatch } from "../types/models";
 import { TransactionFilterBar } from "../components/transactions/TransactionFilterBar";
 import { TransactionRow } from "../components/transactions/TransactionRow";
+import { PaginationControls } from "../components/transactions/PaginationControls";
+import { useTransactionsQuery } from "../hooks/useTransactionsQuery";
 
 interface PreviewTransaction {
   date: string;
@@ -34,15 +36,12 @@ export function AccountDetail() {
   const [isLoadingAccount, setIsLoadingAccount] = useState(true);
   const [accountError, setAccountError] = useState("");
 
-  // --- Transactions State ---
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
-  const [transactionsError, setTransactionsError] = useState("");
-
-  // --- Filter State ---
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [monthFilter, setMonthFilter] = useState("");
+  // --- Transactions: fetch/filter/pagination now lives in the shared
+  // useTransactionsQuery hook (also used by the global Transactions page),
+  // so both pages filter/paginate server-side instead of client-filtering
+  // an ever-growing in-memory list. accountId is fixed here -- no account
+  // selector is shown on this page. ---
+  const transactionsQuery = useTransactionsQuery(accountId);
 
   // --- Upload State ---
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -84,22 +83,6 @@ export function AccountDetail() {
       setAccountError("Couldn't load this account.");
     } finally {
       setIsLoadingAccount(false);
-    }
-  }, [accountId]);
-
-  const fetchTransactions = useCallback(async () => {
-    if (!accountId) return;
-    try {
-      const response = await client.get<{ transactions: Transaction[] }>(
-        "/transactions",
-        { params: { account_id: accountId } }
-      );
-      setTransactions(response.data.transactions ?? []);
-      setTransactionsError("");
-    } catch {
-      setTransactionsError("Couldn't load transactions for this account.");
-    } finally {
-      setIsLoadingTransactions(false);
     }
   }, [accountId]);
 
@@ -145,21 +128,6 @@ export function AccountDetail() {
 
     (async () => {
       try {
-        const response = await client.get<{ transactions: Transaction[] }>(
-          "/transactions",
-          { params: { account_id: accountId } }
-        );
-        setTransactions(response.data.transactions ?? []);
-        setTransactionsError("");
-      } catch {
-        setTransactionsError("Couldn't load transactions for this account.");
-      } finally {
-        setIsLoadingTransactions(false);
-      }
-    })();
-
-    (async () => {
-      try {
         const response = await client.get<Reconciliation[]>(`/accounts/${accountId}/reconciliations`);
         setReconciliations(response.data);
       } catch {
@@ -180,15 +148,6 @@ export function AccountDetail() {
       }
     })();
   }, [accountId]);
-
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter((t) => {
-      const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCat = categoryFilter ? t.category === categoryFilter : true;
-      const matchesMonth = monthFilter ? t.date.startsWith(monthFilter) : true;
-      return matchesSearch && matchesCat && matchesMonth;
-    });
-  }, [transactions, searchQuery, categoryFilter, monthFilter]);
 
   const handlePreviewSubmit = async () => {
     if (!selectedFile || !accountId) return;
@@ -228,7 +187,8 @@ export function AccountDetail() {
       setPreview(null);
       setSelectedFile(null);
       setShowUploadConfirm(false);
-      await Promise.all([fetchAccount(), fetchTransactions(), fetchUploadBatches()]);
+      await Promise.all([fetchAccount(), fetchUploadBatches()]);
+      transactionsQuery.refetch();
     } catch {
       setConfirmError("Couldn't save these transactions.");
     } finally {
@@ -261,7 +221,8 @@ export function AccountDetail() {
     try {
       await client.delete(`/accounts/${accountId}/upload-batches/${pendingDeleteBatchId}`);
       setPendingDeleteBatchId(null);
-      await Promise.all([fetchAccount(), fetchTransactions(), fetchUploadBatches()]);
+      await Promise.all([fetchAccount(), fetchUploadBatches()]);
+      transactionsQuery.refetch();
     } catch {
       setBatchesError("Couldn't delete this upload. Please try again.");
     } finally {
@@ -384,21 +345,30 @@ export function AccountDetail() {
       <section className="space-y-4">
         <h2 className="text-lg font-medium text-slate-100">Transactions</h2>
         <TransactionFilterBar
-          searchQuery={searchQuery} onSearchChange={setSearchQuery}
-          categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
-          monthFilter={monthFilter} onMonthChange={setMonthFilter}
+          searchQuery={transactionsQuery.searchInput} onSearchChange={transactionsQuery.setSearchInput}
+          categoryFilter={transactionsQuery.categoryFilter} onCategoryChange={transactionsQuery.setCategoryFilter}
+          monthFilter={transactionsQuery.monthFilter} onMonthChange={transactionsQuery.setMonthFilter}
         />
-        {transactionsError && <Alert type="error" message={transactionsError} />}
+        {transactionsQuery.error && <Alert type="error" message={transactionsQuery.error} />}
 
-        {isLoadingTransactions ? (
+        {transactionsQuery.isLoading ? (
           <p className="text-xs text-slate-400">Loading transactions...</p>
-        ) : filteredTransactions.length === 0 ? (
+        ) : transactionsQuery.transactions.length === 0 ? (
           <div className="py-6 text-center border border-dashed border-slate-800 rounded-lg bg-slate-900/30">
             <p className="text-sm font-medium text-slate-300">No transactions yet</p>
             <p className="text-xs text-slate-500 mt-1">Adjust your filters or upload a statement to see your history.</p>
           </div>
         ) : (
-          filteredTransactions.map((t) => <TransactionRow key={t.id} transaction={t} />)
+          <>
+            {transactionsQuery.transactions.map((t) => <TransactionRow key={t.id} transaction={t} />)}
+            <PaginationControls
+              page={transactionsQuery.page}
+              totalPages={transactionsQuery.totalPages}
+              total={transactionsQuery.total}
+              pageSize={transactionsQuery.pageSize}
+              onPageChange={transactionsQuery.setPage}
+            />
+          </>
         )}
       </section>
 
