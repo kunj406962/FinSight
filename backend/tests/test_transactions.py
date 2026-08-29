@@ -9,19 +9,20 @@ from app.main import app
 
 
 class FakeResult:
-    def __init__(self, data):
+    def __init__(self, data, count=None):
         self.data = data
+        self.count = count
 
 
 class FakeQuery:
     """Chainable fake mirroring the subset of PostgREST query builder methods
-    get_transactions actually calls: select, eq, gte, lte, order, execute."""
+    get_transactions actually calls: select(count=...), eq, gte, lte, ilike,
+    order, range, execute."""
 
-    def __init__(self, rows):
+    def __init__(self, rows, count_exact=False):
         self.rows = list(rows)
-
-    def select(self, *args, **kwargs):
-        return self
+        self._count_exact = count_exact
+        self._range = None
 
     def eq(self, col, val):
         self.rows = [r for r in self.rows if str(r.get(col)) == str(val)]
@@ -35,20 +36,38 @@ class FakeQuery:
         self.rows = [r for r in self.rows if r.get(col) <= val]
         return self
 
+    def ilike(self, col, pattern):
+        needle = pattern.strip("%").lower()
+        self.rows = [r for r in self.rows if needle in str(r.get(col, "")).lower()]
+        return self
+
     def order(self, col, desc=False):
         self.rows = sorted(self.rows, key=lambda r: r.get(col), reverse=desc)
         return self
 
+    def range(self, start, end):
+        self._range = (start, end)
+        return self
+
     def execute(self):
-        return FakeResult(self.rows)
+        # count reflects every row matching the filters applied so far,
+        # taken BEFORE range() slices the page -- mirrors real Supabase
+        # count="exact" behavior (count is over the full filtered set, not
+        # just the returned page).
+        total = len(self.rows) if self._count_exact else None
+        data = self.rows
+        if self._range:
+            start, end = self._range
+            data = data[start : end + 1]
+        return FakeResult(data, count=total)
 
 
 class FakeTable:
     def __init__(self, rows):
         self._rows = rows
 
-    def select(self, *args, **kwargs):
-        return FakeQuery(self._rows)
+    def select(self, *args, count=None, **kwargs):
+        return FakeQuery(self._rows, count_exact=(count == "exact"))
 
 
 class FakeSupabase:
@@ -189,3 +208,54 @@ def test_unowned_account_id_returns_empty_not_404(client, fake_supabase):
 
     assert response.status_code == 200
     assert response.json()["total"] == 0
+
+
+def test_search_filter_matches_description_case_insensitively(client, fake_supabase):
+    with patch("app.routers.transactions.get_supabase", return_value=fake_supabase):
+        response = client.get("/transactions", params={"search": "rent"})
+
+    data = response.json()
+    assert data["total"] == 1
+    assert data["transactions"][0]["id"] == "10000000-0000-0000-0000-000000000002"
+
+
+def test_search_filter_no_match_returns_empty(client, fake_supabase):
+    with patch("app.routers.transactions.get_supabase", return_value=fake_supabase):
+        response = client.get(
+            "/transactions", params={"search": "nonexistent merchant"}
+        )
+
+    data = response.json()
+    assert data["total"] == 0
+    assert data["transactions"] == []
+
+
+def test_pagination_limit_returns_partial_page_but_full_total(client, fake_supabase):
+    with patch("app.routers.transactions.get_supabase", return_value=fake_supabase):
+        response = client.get("/transactions", params={"limit": 1, "offset": 0})
+
+    data = response.json()
+    assert len(data["transactions"]) == 1
+    assert data["total"] == 3  # full filtered count, not just this page
+
+
+def test_pagination_offset_returns_next_page(client, fake_supabase):
+    with patch("app.routers.transactions.get_supabase", return_value=fake_supabase):
+        first_page = client.get("/transactions", params={"limit": 1, "offset": 0}).json()
+        second_page = client.get(
+            "/transactions", params={"limit": 1, "offset": 1}
+        ).json()
+
+    assert first_page["transactions"][0]["id"] != second_page["transactions"][0]["id"]
+    assert first_page["total"] == second_page["total"] == 3
+
+
+def test_pagination_combined_with_filters(client, fake_supabase):
+    with patch("app.routers.transactions.get_supabase", return_value=fake_supabase):
+        response = client.get(
+            "/transactions", params={"account_id": ACC_1, "limit": 1, "offset": 0}
+        )
+
+    data = response.json()
+    assert len(data["transactions"]) == 1
+    assert data["total"] == 2  # ACC_1 has 2 matching rows total, not just this page

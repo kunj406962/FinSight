@@ -61,7 +61,7 @@ class TransactionResponse(BaseModel):
     category: Category
     account_type: str
     is_anomaly: bool
-    anomaly_score: float
+    anomaly_score: float | None
     created_at: datetime
 
 
@@ -143,3 +143,11 @@ class ReconciliationResponse(BaseModel):
     reconciled_balance: float
     reconciled_at: date
     created_at: datetime
+
+class UploadBatchResponse(BaseModel):
+    id: UUID
+    account_id: UUID
+    filename: str
+    bank_detected: str
+    transaction_count: int
+    uploaded_at: datetime
