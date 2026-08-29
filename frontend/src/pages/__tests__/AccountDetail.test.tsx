@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { AccountDetail } from "../AccountDetail";
 import client from "../../api/client";
+import type { AxiosRequestConfig } from "axios";
 
 // Mock react-router-dom to provide the accountId param
 vi.mock("react-router-dom", async () => {
@@ -130,7 +131,7 @@ describe("AccountDetail Page", () => {
     // param and return a different page for it, and the assertion has to
     // wait out the ~400ms debounce before the filtered request fires.
     vi.mocked(client.get).mockImplementation(
-      (url: string, config?: { params?: Record<string, unknown> }) => {
+      (url: string, config?: AxiosRequestConfig)  => {
         if (url === "/accounts") {
           return Promise.resolve({ data: [mockAccount] });
         }
