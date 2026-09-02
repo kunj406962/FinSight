@@ -7,6 +7,7 @@ import { ResendConfirmation } from "./pages/ResendConfirmation";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 import { Accounts } from "./pages/Accounts";
 import {AccountDetail} from "./pages/AccountDetail";
+import {Transactions} from "./pages/Transactions";
 
 function Home() {
   return (
@@ -28,6 +29,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/accounts/:accountId" element={<AccountDetail />} />
+        <Route path="/transactions" element={<Transactions />} />
       </Route>
       <Route path="*" element={<div>404 Not Found</div>} />            
     </Routes>
