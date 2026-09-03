@@ -11,8 +11,6 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
-type GetParams = { params?: Record<string, unknown> };
-
 const mockAccounts = [
   {
     id: "acc-1",
@@ -77,7 +75,7 @@ describe("Transactions Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    vi.mocked(client.get).mockImplementation((url: string) => {
+    vi.mocked(client.get).mockImplementation((url) => {
       if (url === "/accounts") {
         return Promise.resolve({ data: mockAccounts });
       }
@@ -110,7 +108,7 @@ describe("Transactions Page", () => {
   });
 
   it("shows an alert if accounts fail to load, but still renders transactions", async () => {
-    vi.mocked(client.get).mockImplementation((url: string) => {
+    vi.mocked(client.get).mockImplementation((url) => {
       if (url === "/accounts") return Promise.reject(new Error("Network Error"));
       if (url === "/transactions") {
         return Promise.resolve({
@@ -129,7 +127,7 @@ describe("Transactions Page", () => {
   });
 
   it("shows an alert if transactions fail to load", async () => {
-    vi.mocked(client.get).mockImplementation((url: string) => {
+    vi.mocked(client.get).mockImplementation((url) => {
       if (url === "/accounts") return Promise.resolve({ data: mockAccounts });
       if (url === "/transactions") return Promise.reject(new Error("Network Error"));
       return Promise.reject(new Error("Not found"));
@@ -143,7 +141,7 @@ describe("Transactions Page", () => {
   });
 
   it("shows an empty state when no transactions match the current filters", async () => {
-    vi.mocked(client.get).mockImplementation((url: string) => {
+    vi.mocked(client.get).mockImplementation((url) => {
       if (url === "/accounts") return Promise.resolve({ data: mockAccounts });
       if (url === "/transactions") return Promise.resolve({ data: { transactions: [], total: 0 } });
       return Promise.reject(new Error("Not found"));
@@ -157,10 +155,11 @@ describe("Transactions Page", () => {
   });
 
   it("filters by account via the account dropdown, sending account_id to the server", async () => {
-    vi.mocked(client.get).mockImplementation((url: string, config?: GetParams) => {
+    vi.mocked(client.get).mockImplementation((url, config) => {
+      const params = config?.params as Record<string, unknown> | undefined;
       if (url === "/accounts") return Promise.resolve({ data: mockAccounts });
       if (url === "/transactions") {
-        if (config?.params?.account_id === "acc-2") {
+        if (params?.account_id === "acc-2") {
           return Promise.resolve({ data: { transactions: [flightTxn], total: 1 } });
         }
         return Promise.resolve({
@@ -185,10 +184,11 @@ describe("Transactions Page", () => {
   });
 
   it("filters by category via the category dropdown, sending category to the server", async () => {
-    vi.mocked(client.get).mockImplementation((url: string, config?: GetParams) => {
+    vi.mocked(client.get).mockImplementation((url, config) => {
+      const params = config?.params as Record<string, unknown> | undefined;
       if (url === "/accounts") return Promise.resolve({ data: mockAccounts });
       if (url === "/transactions") {
-        if (config?.params?.category === "Transport") {
+        if (params?.category === "Transport") {
           return Promise.resolve({ data: { transactions: [flightTxn], total: 1 } });
         }
         return Promise.resolve({
@@ -213,10 +213,11 @@ describe("Transactions Page", () => {
   });
 
   it("re-fetches transactions from the server after a debounced search input", async () => {
-    vi.mocked(client.get).mockImplementation((url: string, config?: GetParams) => {
+    vi.mocked(client.get).mockImplementation((url, config) => {
+      const params = config?.params as Record<string, unknown> | undefined;
       if (url === "/accounts") return Promise.resolve({ data: mockAccounts });
       if (url === "/transactions") {
-        if (config?.params?.search === "flight") {
+        if (params?.search === "flight") {
           return Promise.resolve({ data: { transactions: [flightTxn], total: 1 } });
         }
         return Promise.resolve({
@@ -250,10 +251,11 @@ describe("Transactions Page", () => {
     const page1Txn = { ...groceryTxn };
     const page2Txn = { ...flightTxn, id: "txn-page2", description: "Page 2 Item" };
 
-    vi.mocked(client.get).mockImplementation((url: string, config?: GetParams) => {
+    vi.mocked(client.get).mockImplementation((url, config) => {
+      const params = config?.params as Record<string, unknown> | undefined;
       if (url === "/accounts") return Promise.resolve({ data: mockAccounts });
       if (url === "/transactions") {
-        const offset = config?.params?.offset ?? 0;
+        const offset = params?.offset ?? 0;
         if (offset === 50) {
           return Promise.resolve({ data: { transactions: [page2Txn], total: 120 } });
         }
@@ -286,10 +288,10 @@ describe("Transactions Page", () => {
     const page2Txn = { ...flightTxn, id: "txn-page2", description: "Page 2 Item" };
     const filteredTxn = { ...flightTxn, id: "txn-filtered", description: "Filtered Item" };
 
-    vi.mocked(client.get).mockImplementation((url: string, config?: GetParams) => {
+    vi.mocked(client.get).mockImplementation((url, config) => {
+      const params = (config?.params ?? {}) as Record<string, unknown>;
       if (url === "/accounts") return Promise.resolve({ data: mockAccounts });
       if (url === "/transactions") {
-        const params = config?.params ?? {};
         if (params.category === "Transport") {
           return Promise.resolve({ data: { transactions: [filteredTxn], total: 1 } });
         }
