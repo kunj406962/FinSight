@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 import { Accounts } from "./pages/Accounts";
 import {AccountDetail} from "./pages/AccountDetail";
 import {Transactions} from "./pages/Transactions";
+import { Dashboard } from "./pages/Dashboard";
 
 function Home() {
   return (
@@ -26,6 +27,7 @@ function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/resend-confirmation" element={<ResendConfirmation />} />
       <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<Dashboard />} />
         <Route path="/" element={<Home />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/accounts/:accountId" element={<AccountDetail />} />

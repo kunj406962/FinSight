@@ -24,6 +24,7 @@ async def get_transactions(
     start_date: date | None = None,
     end_date: date | None = None,
     category: Category | None = None,
+    is_anomaly: bool | None = None,
     search: str | None = None,
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     offset: int = Query(0, ge=0),
@@ -50,6 +51,8 @@ async def get_transactions(
         query = query.lte("date", end_date.isoformat())
     if category:
         query = query.eq("category", category.value)
+    if is_anomaly is not None:
+        query = query.eq("is_anomaly", is_anomaly)
     if search:
         query = query.ilike("description", f"%{search}%")
 
