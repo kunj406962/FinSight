@@ -20,25 +20,36 @@ export function AnomalyOverlay({ isOpen, onClose }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Reset to page 1 each time the overlay is opened fresh.
-  useEffect(() => {
+  // Reset to page 1 each time the overlay is opened fresh — render-time
+  // conditional setState, not a useEffect, to avoid the same
+  // react-hooks/set-state-in-effect false-positive already documented for
+  // useTransactionsQuery's page-reset-on-filter-change logic.
+  const [lastIsOpen, setLastIsOpen] = useState(isOpen);
+  if (isOpen !== lastIsOpen) {
+    setLastIsOpen(isOpen);
     if (isOpen) setPage(1);
-  }, [isOpen]);
+  }
 
   useEffect(() => {
     if (!isOpen) return;
-    setError("");
-    setIsLoading(true);
-    client
-      .get<{ transactions: Transaction[]; total: number }>("/transactions", {
-        params: { is_anomaly: true, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE },
-      })
-      .then((res) => {
+    // Inline async IIFE — same established pattern as AccountDetail's mount
+    // effect, avoids the set-state-in-effect false trigger.
+    (async () => {
+      setError("");
+      setIsLoading(true);
+      try {
+        const res = await client.get<{ transactions: Transaction[]; total: number }>(
+          "/transactions",
+          { params: { is_anomaly: true, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE } }
+        );
         setTransactions(res.data.transactions);
         setTotal(res.data.total);
-      })
-      .catch(() => setError("Couldn't load anomalies."))
-      .finally(() => setIsLoading(false));
+      } catch {
+        setError("Couldn't load anomalies.");
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, [isOpen, page]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

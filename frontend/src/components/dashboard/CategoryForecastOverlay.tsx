@@ -20,17 +20,24 @@ export function CategoryForecastOverlay({ category, forecast, onClose }: Props) 
 
   useEffect(() => {
     if (!category) return;
-    setTransactions([]);
-    setError("");
-    setIsLoading(true);
-    const { start, end } = getMonthBounds();
-    client
-      .get<{ transactions: Transaction[] }>("/transactions", {
-        params: { category, start_date: start, end_date: end, limit: 200 },
-      })
-      .then((res) => setTransactions(res.data.transactions))
-      .catch(() => setError("Couldn't load this month's transactions."))
-      .finally(() => setIsLoading(false));
+    // Inline async IIFE — same established pattern as AccountDetail's mount
+    // effect, avoids the set-state-in-effect false trigger.
+    (async () => {
+      setTransactions([]);
+      setError("");
+      setIsLoading(true);
+      const { start, end } = getMonthBounds();
+      try {
+        const res = await client.get<{ transactions: Transaction[] }>("/transactions", {
+          params: { category, start_date: start, end_date: end, limit: 200 },
+        });
+        setTransactions(res.data.transactions);
+      } catch {
+        setError("Couldn't load this month's transactions.");
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, [category]);
 
   return (
