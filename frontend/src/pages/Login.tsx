@@ -5,6 +5,7 @@ import { AuthLayout } from "../components/auth/AuthLayout";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { Alert } from "../components/ui/Alert";
+import { enterDemoMode } from "../demo/demoState";
 
 export function Login() {
   const { login } = useAuth();
@@ -16,6 +17,11 @@ export function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const successMessage = (location.state as { message?: string } | null)?.message;
+
+  function handleViewDemo() {
+    enterDemoMode();
+    navigate("/");
+  }
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -85,6 +91,11 @@ export function Login() {
             Sign in
           </Button>
         </form>
+
+        {/* Demo entry point — bypasses real auth entirely, read-only mock data */}
+        <Button type="button" variant="outline" className="w-full" onClick={handleViewDemo}>
+          View Demo
+        </Button>
 
         {/* Footer Actions & Account Links */}
         <div className="pt-4 border-t border-slate-900 space-y-3 text-xs text-slate-400">
