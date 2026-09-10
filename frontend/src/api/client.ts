@@ -1,11 +1,17 @@
 import axios from "axios";
 import { getToken, clearToken } from "./authToken";
+import { isDemoMode } from "../demo/demoState";
+import { demoAdapter } from "../demo/demoAdapter";
 
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
 });
 
 client.interceptors.request.use((config) => {
+  if (isDemoMode()) {
+    config.adapter = demoAdapter;
+    return config;
+  }
   const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
