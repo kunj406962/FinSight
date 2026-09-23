@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/useAuth";
+import { isDemoMode, exitDemoMode } from "../../demo/demoState";
 
 interface NavItem {
   label: string;
@@ -77,6 +78,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [prevPathname, setPrevPathname] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const demo = isDemoMode();
+
+  function handleExitDemo() {
+    exitDemoMode();
+    navigate("/login");
+  }
   
   if (location.pathname !== prevPathname) {
     setPrevPathname(location.pathname);
@@ -200,35 +208,65 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* User Profile & Logout Section */}
         <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3 min-w-0 pr-2">
-              <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold text-slate-300 flex-shrink-0">
-                {user?.email ? user.email.charAt(0).toUpperCase() : "U"}
+          {demo ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3 min-w-0 pr-2">
+                <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-xs font-semibold text-amber-400 flex-shrink-0">
+                  D
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-slate-200 truncate">Demo Account</p>
+                  <p className="text-[10px] text-slate-500 truncate">Read-only</p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-200 truncate">
-                  {user?.email || "Authenticated User"}
-                </p>
-                <p className="text-[10px] text-slate-500 truncate">Active Session</p>
-              </div>
+              <button
+                type="button"
+                onClick={handleExitDemo}
+                title="Exit Demo"
+                aria-label="Exit Demo"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors flex-shrink-0"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={logout}
-              title="Sign Out"
-              aria-label="Sign Out"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors flex-shrink-0"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
-            </button>
-          </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3 min-w-0 pr-2">
+                <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold text-slate-300 flex-shrink-0">
+                  {user?.email ? user.email.charAt(0).toUpperCase() : "U"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-slate-200 truncate">
+                    {user?.email || "Authenticated User"}
+                  </p>
+                  <p className="text-[10px] text-slate-500 truncate">Active Session</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={logout}
+                title="Sign Out"
+                aria-label="Sign Out"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors flex-shrink-0"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
