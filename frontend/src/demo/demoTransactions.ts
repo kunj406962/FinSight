@@ -1,4 +1,4 @@
-import { toISODate } from "../utils/dateRange";
+import { toISODate } from "../utils/DateRange";
 import type { Transaction } from "../types/models";
 
 export interface DemoAccount {
