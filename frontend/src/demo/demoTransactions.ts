@@ -1,4 +1,4 @@
-import { toISODate } from "../utils/DateRange";
+import { toISODate } from "../utils/dateRange";
 import type { Transaction } from "../types/models";
 
 export interface DemoAccount {
@@ -178,9 +178,13 @@ function generateChequing(start: Date, end: Date, accountId: string): Transactio
     rows.push(makeTxn(accountId, type, d, "BILL PAYMENT - VISA CREDIT CARD", -uniform(350, 500), "Transfer"))
   );
 
-  const anomalyDate = new Date(start);
-  anomalyDate.setDate(anomalyDate.getDate() + 45);
-  if (anomalyDate <= end) {
+  // Deliberate anomaly, dated within last month so it falls inside
+  // /insights' "last month + current month" anomaly_count window — not just
+  // inside the all-time window the overlay itself queries. Anchored to
+  // `end` (today), not `start`, so it stays in that window regardless of
+  // how far back the 3-month history range goes.
+  const anomalyDate = new Date(end.getFullYear(), end.getMonth() - 1, 12);
+  if (anomalyDate >= start && anomalyDate <= end) {
     rows.push(makeTxn(accountId, type, anomalyDate, "ELECTRONICS MEGASTORE", -1499, "Shopping", true));
   }
 
@@ -231,9 +235,12 @@ function generateCreditCard(start: Date, end: Date, accountId: string): Transact
     rows.push(makeTxn(accountId, type, d, "PAYMENT - THANK YOU", uniform(350, 500), "Transfer"))
   );
 
-  const anomalyDate = new Date(start);
-  anomalyDate.setDate(anomalyDate.getDate() + 60);
-  if (anomalyDate <= end) {
+  // Second deliberate anomaly, dated in the current month (a week back from
+  // today) so it also falls inside the anomaly_count window — pairs with
+  // the first one landing in last month.
+  const anomalyDate = new Date(end);
+  anomalyDate.setDate(anomalyDate.getDate() - 7);
+  if (anomalyDate >= start) {
     rows.push(makeTxn(accountId, type, anomalyDate, "LUXURY WATCH BOUTIQUE", -799, "Shopping", true));
   }
 
